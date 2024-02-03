@@ -2,6 +2,7 @@ import {Router} from "express"
 import {Request, Response} from "express"
 
 const grade = async(req: Request, res: Response) => {
+    console.log("grade called")
     try {
         if (!req){
             throw new Error("No request given")
