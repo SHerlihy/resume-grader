@@ -9,13 +9,14 @@ const grade = async(req: Request, res: Response) => {
         }
 
         return res.status(201).json({
-          message: "OK",
-          score: "50",
+            success: true,
+            message: "OK",
+            grade: 50
         })
     } catch (err) {
         return res.status(200).json({
+            success: false,
             message: err.message,
-            score: "",
         })
     }
 }

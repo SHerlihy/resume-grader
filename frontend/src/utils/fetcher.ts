@@ -11,13 +11,10 @@ const fetcher = () => {
     }
 
     const doFetching = async(url: URL, payload: RequestInit) => {
-            console.log("do fetching")
         isFetching = true
 
         try{
-            console.log("fetching...")
             const response = await fetch(url, payload)
-            console.log("fetched")
             isFetching = false
 
             if (response.status < 200 || 299 < response.status) {
@@ -28,11 +25,13 @@ const fetcher = () => {
                 throw new Error(`Status ${response.status}: request unsuccessful`)
             }
 
+            const value = await response.json()
+
             publish([])
             return {
                 success: true,
                 message: `Status ${response.status}: request successful`,
-                value: response.json()
+                value
             }
         } catch (error) {
             isFetching = false
