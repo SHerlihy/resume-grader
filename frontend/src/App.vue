@@ -1,6 +1,10 @@
 <script setup lang="ts">
     import {Ref, ref} from "vue"
 
+    import {getDocument, GlobalWorkerOptions} from "pdfjs-dist"
+
+    GlobalWorkerOptions.workerSrc = "../node_modules/pdfjs-dist/build/pdf.worker.mjs"
+
     import { getFetching, doFetching } from "./utils/fetcher";
     import {validateFile} from "./utils/uploadFile.ts"
 
@@ -69,20 +73,50 @@
         const formData = new FormData(event.currentTarget as HTMLFormElement)
         const formDataFiles = Object.fromEntries(formData)
 
-        for (const [_, value] of Object.entries(formDataFiles)){
-            const {isValid, message} = validateFile(value as File, MAX_UPLOAD_BYTES, ACCEPTED_FILE_TYPES)
+        const fileStrings = {} as Record<string, string>
+        for (let [key, value] of Object.entries(formDataFiles)){
+            if (typeof value === "string") {
+                uploadMessage.value = "How did you upload a string bro?"
+                return
+            }
+
+            const {isValid, message} = validateFile(value, MAX_UPLOAD_BYTES, ACCEPTED_FILE_TYPES)
 
             if (!isValid) {
                 uploadMessage.value = message
                 return
             }
+
+            const pdfBuf = await value.arrayBuffer()
+            const pdf = getDocument(pdfBuf)
+
+            const loadedPdf = await pdf.promise
+            const totPages = loadedPdf.numPages
+
+            let pdfText = ""
+            for (let i=1; i<=totPages; i++) {
+                const pageX = await loadedPdf.getPage(i)
+                const xText = await pageX.getTextContent()
+
+                for (let j=0; j<xText.items.length; j++) {
+                    const txtItem = xText.items[j]
+                    if (txtItem.hasOwnProperty("str") === false){
+                        continue
+                    }
+
+                    //@ts-ignore
+                    pdfText = `${pdfText}${txtItem.str}\n`
+                }
+            }
+
+            fileStrings[key] = pdfText
         }
 
         const url = new URL(`${BACKEND_URL}/api/v1/grade`)
 
         const fetchOptions = {
             method: "POST",
-            body: formData
+            body: JSON.stringify(fileStrings)
         }
 
         const {success, message, value} = await doFetching(url, fetchOptions)
@@ -92,7 +126,12 @@
             return
         }
 
-        uploadMessage.value = gradeString(value.grade)
+        if (!value.score) {
+            uploadMessage.value = value.message
+            return
+        }
+
+        uploadMessage.value = gradeString(value.score)
     }
 </script>
 
