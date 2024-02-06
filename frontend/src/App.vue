@@ -1,11 +1,8 @@
 <script setup lang="ts">
     import {Ref, ref} from "vue"
 
-    import {getDocument, GlobalWorkerOptions} from "pdfjs-dist"
-
-    GlobalWorkerOptions.workerSrc = "../node_modules/pdfjs-dist/build/pdf.worker.mjs"
-
     import { getFetching, doFetching } from "./utils/fetcher";
+    import { pdfToStr } from "./utils/pdfParsers.ts";
     import {validateFile} from "./utils/uploadFile.ts"
 
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL
@@ -22,6 +19,10 @@
 
     const resumeInputMessage = ref(noFileMessage)
     const descriptionInputMessage = ref(noFileMessage)
+
+    const gradeString = (grade:string) => {
+        return `Resume uploaded is ${grade}% relevant`
+    }
 
     const handleFileChange = (event: Event, feedback: Ref<string|null>) => {
         const fileInput = event.target as HTMLInputElement
@@ -61,10 +62,6 @@
         return handleFileChange(event, descriptionInputMessage)
     }
 
-    const gradeString = (grade:string) => {
-        return `Resume uploaded is ${grade}% relevant`
-    }
-
     const handleSubmit = async(event: Event) => {
         if (getFetching() === true) {
             return
@@ -87,35 +84,20 @@
                 return
             }
 
-            const pdfBuf = await value.arrayBuffer()
-            const pdf = getDocument(pdfBuf)
+            if (value.type === "application/pdf") {
+                const fileString = await pdfToStr(value)
 
-            const loadedPdf = await pdf.promise
-            const totPages = loadedPdf.numPages
-
-            let pdfText = ""
-            for (let i=1; i<=totPages; i++) {
-                const pageX = await loadedPdf.getPage(i)
-                const xText = await pageX.getTextContent()
-
-                for (let j=0; j<xText.items.length; j++) {
-                    const txtItem = xText.items[j]
-                    if (txtItem.hasOwnProperty("str") === false){
-                        continue
-                    }
-
-                    //@ts-ignore
-                    pdfText = `${pdfText}${txtItem.str}\n`
-                }
+                fileStrings[key] = fileString
             }
-
-            fileStrings[key] = pdfText
         }
 
         const url = new URL(`${BACKEND_URL}/api/v1/grade`)
 
         const fetchOptions = {
             method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
             body: JSON.stringify(fileStrings)
         }
 
